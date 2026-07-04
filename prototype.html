@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>GDFC Edge AI Prototype</title>
+
+<link rel="stylesheet" href="css/prototype.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+
+<div class="logo">
+
+<h1>GDFC</h1>
+
+<p>Grounded AI Flight Control</p>
+
+</div>
+
+<div class="status-container">
+
+<div class="status-card">
+
+<span class="status-dot"></span>
+
+EDGE AI ONLINE
+
+</div>
+
+<div class="status-card">
+
+Cloud : OFFLINE
+
+</div>
+
+</div>
+
+</header>
+
+
+<section class="hero">
+
+<h2>Edge AI Flight Prototype Dashboard</h2>
+
+<p>
+
+Real-Time Aircraft Fault Detection using Edge AI
+
+</p>
+
+</section>
+
+
+
+<section class="input-section">
+
+<div class="card">
+
+<h2>Aircraft Telemetry Input</h2>
+
+<p>
+
+Enter flight sensor parameters or use sample scenarios.
+
+</p>
+
+<div class="input-grid">
+
+
+<div class="input-box">
+
+<label>Pitot Airspeed (kt)</label>
+
+<input type="number" id="pitot_speed">
+
+</div>
+
+
+<div class="input-box">
+
+<label>GPS Ground Speed (kt)</label>
+
+<input type="number" id="gps_speed">
+
+</div>
+
+
+<div class="input-box">
+
+<label>Altitude (ft)</label>
+
+<input type="number" id="altitude">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Vertical Speed</label>
+
+<input type="number" id="vertical_speed">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Pitch (°)</label>
+
+<input type="number" id="pitch">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Roll (°)</label>
+
+<input type="number" id="roll">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Heading</label>
+
+<input type="number" id="heading">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Accel X</label>
+
+<input type="number" id="accel_x">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Accel Y</label>
+
+<input type="number" id="accel_y">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Accel Z</label>
+
+<input type="number" id="accel_z">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Gyro X</label>
+
+<input type="number" id="gyro_x">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Gyro Y</label>
+
+<input type="number" id="gyro_y">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Gyro Z</label>
+
+<input type="number" id="gyro_z">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Pressure</label>
+
+<input type="number" id="pressure">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Temperature</label>
+
+<input type="number" id="temperature">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Latitude</label>
+
+<input type="number" step="0.000001" id="latitude">
+
+</div>
+
+
+
+<div class="input-box">
+
+<label>Longitude</label>
+
+<input type="number" step="0.000001" id="longitude">
+
+</div>
+
+</div>
+
+<div class="button-row">
+
+<button id="normalBtn">
+
+🟢 Normal Flight
+
+</button>
+
+<button id="pitotBtn">
+
+🔴 Pitot Failure
+
+</button>
+
+<button id="gpsBtn">
+
+🟠 GPS Failure
+
+</button>
+
+<button id="imuBtn">
+
+🟣 IMU Drift
+
+</button>
+
+<button id="resetBtn">
+
+Reset
+
+</button>
+
+<button id="predictBtn" class="primary">
+
+Run Edge AI
+
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<section class="dashboard">
+
+<div class="dashboard-grid">
+
+
+
+<div class="card ai-card">
+
+<h2>Edge AI Inference</h2>
+
+<div class="metric">
+
+Prediction
+
+<span id="prediction">
+
+Waiting...
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Confidence
+
+<span id="confidence">
+
+--
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Inference Time
+
+<span id="latency">
+
+--
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Model
+
+<span>
+
+Random Forest
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Execution
+
+<span>
+
+Edge Device
+
+</span>
+
+</div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>Decision Engine</h2>
+
+<div class="decision-flow">
+
+AI Prediction
+
+↓
+
+Backup Sensor
+
+↓
+
+Safe Hold
+
+↓
+
+Pilot Guidance
+
+</div>
+
+<div class="metric">
+
+Backup Sensor
+
+<span id="backup_sensor">
+
+--
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Mode
+
+<span id="control_mode">
+
+NORMAL
+
+</span>
+
+</div>
+
+<div class="metric">
+
+Priority
+
+<span id="priority">
+
+LOW
+
+</span>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+  <!-- ================= SENSOR HEALTH ================= -->
+
+<section class="dashboard">
+
+<div class="card">
+
+<h2>Sensor Health Monitor</h2>
+
+<table class="sensor-table">
+
+<thead>
+
+<tr>
+
+<th>Sensor</th>
+
+<th>Reading</th>
+
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td>Pitot Airspeed</td>
+
+<td id="pitot_reading">--</td>
+
+<td id="pitot_status" class="healthy">🟢 Healthy</td>
+
+</tr>
+
+<tr>
+
+<td>GPS Speed</td>
+
+<td id="gps_reading">--</td>
+
+<td id="gps_status" class="healthy">🟢 Healthy</td>
+
+</tr>
+
+<tr>
+
+<td>IMU</td>
+
+<td id="imu_reading">Stable</td>
+
+<td id="imu_status" class="healthy">🟢 Healthy</td>
+
+</tr>
+
+<tr>
+
+<td>Barometric Pressure</td>
+
+<td id="pressure_reading">--</td>
+
+<td id="pressure_status" class="healthy">🟢 Healthy</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= SAFE HOLD ================= -->
+
+<section class="dashboard">
+
+<div class="dashboard-grid">
+
+<div class="card">
+
+<h2>Safe Hold Status</h2>
+
+<div class="status-grid">
+
+<div class="status-box">
+
+<h4>Pitch Hold</h4>
+
+<p id="pitch_hold">Inactive</p>
+
+</div>
+
+<div class="status-box">
+
+<h4>Roll Hold</h4>
+
+<p id="roll_hold">Inactive</p>
+
+</div>
+
+<div class="status-box">
+
+<h4>Heading Hold</h4>
+
+<p id="heading_hold">Inactive</p>
+
+</div>
+
+<div class="status-box">
+
+<h4>Altitude Hold</h4>
+
+<p id="altitude_hold">Inactive</p>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>Pilot Guidance</h2>
+
+<ul id="pilot_guidance">
+
+<li>Waiting for AI prediction...</li>
+
+</ul>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= AI EXPLAINABILITY ================= -->
+
+<section class="dashboard">
+
+<div class="card">
+
+<h2>Feature Importance (Model Explainability)</h2>
+
+<div class="feature-list">
+
+<div class="feature">
+
+<span>Pitot Airspeed</span>
+
+<div class="bar">
+
+<div class="fill" style="width:95%"></div>
+
+</div>
+
+</div>
+
+<div class="feature">
+
+<span>GPS Speed</span>
+
+<div class="bar">
+
+<div class="fill" style="width:92%"></div>
+
+</div>
+
+</div>
+
+<div class="feature">
+
+<span>Altitude</span>
+
+<div class="bar">
+
+<div class="fill" style="width:72%"></div>
+
+</div>
+
+</div>
+
+<div class="feature">
+
+<span>Pitch</span>
+
+<div class="bar">
+
+<div class="fill" style="width:64%"></div>
+
+</div>
+
+</div>
+
+<div class="feature">
+
+<span>Roll</span>
+
+<div class="bar">
+
+<div class="fill" style="width:58%"></div>
+
+</div>
+
+</div>
+
+<div class="feature">
+
+<span>Pressure</span>
+
+<div class="bar">
+
+<div class="fill" style="width:48%"></div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= CHARTS ================= -->
+
+<section class="dashboard">
+
+<div class="dashboard-grid">
+
+<div class="card">
+
+<h2>Airspeed Comparison</h2>
+
+<canvas id="speedChart"></canvas>
+
+</div>
+
+<div class="card">
+
+<h2>Altitude Trend</h2>
+
+<canvas id="altitudeChart"></canvas>
+
+</div>
+
+<div class="card">
+
+<h2>Prediction Confidence</h2>
+
+<canvas id="confidenceChart"></canvas>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= PROTOTYPE STATS ================= -->
+
+<section class="dashboard">
+
+<div class="dashboard-grid">
+
+<div class="card stat-card">
+
+<h3>Accuracy</h3>
+
+<h1 id="accuracy">96.4%</h1>
+
+</div>
+
+<div class="card stat-card">
+
+<h3>Latency</h3>
+
+<h1 id="latencyCard">6 ms</h1>
+
+</div>
+
+<div class="card stat-card">
+
+<h3>Edge Status</h3>
+
+<h1>ONLINE</h1>
+
+</div>
+
+<div class="card stat-card">
+
+<h3>Cloud</h3>
+
+<h1>OFFLINE</h1>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= EVENT LOG ================= -->
+
+<section class="dashboard">
+
+<div class="card">
+
+<h2>System Event Log</h2>
+
+<div id="systemLogs" class="logs">
+
+<div>System Initialized...</div>
+
+<div>Waiting for telemetry...</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ================= FOOTER ================= -->
+
+<footer>
+
+<p>
+
+Grounded AI Flight Control (GDFC)
+
+</p>
+
+<p>
+
+Edge AI Prototype • Tata Technologies InnoVent 2027
+
+</p>
+
+</footer>
+
+</div>
+
+
+
+<script src="js/prototype.js"></script>
+
+</body>
+
+</html>
