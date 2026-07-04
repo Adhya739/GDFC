@@ -1,1022 +1,317 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GDFC — Graceful Degradation Flight Control</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:        #04060e;
-  --panel:     #080f1e;
-  --panel2:    #060c19;
-  --border:    #162035;
-  --border-hi: #1f3558;
-  --glow-b:    #3b8bff;
-  --glow-g:    #10e8a0;
-  --glow-a:    #f59e0b;
-  --glow-r:    #ff3d57;
-  --glow-c:    #38bdf8;
-  --text:      #d4dff5;
-  --text-dim:  #5a7098;
-  --text-mid:  #8ba3cc;
-  --font-hud:  'Orbitron', sans-serif;
-  --font-ui:   'Space Grotesk', sans-serif;
-  --font-data: 'JetBrains Mono', monospace;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* ─── RADAR BACKGROUND ─────────────────────────────────── */
-#radar-canvas {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.28;
-}
-
-/* ─── STATUS BAR ────────────────────────────────────────── */
-#statusbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 28px;
-  height: 48px;
-  background: rgba(4,6,14,0.92);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-  transition: border-color .3s;
-}
-#statusbar.fault  { border-color: rgba(245,158,11,.5); }
-#statusbar.hold   { border-color: rgba(255,61,87,.6); box-shadow: 0 0 20px rgba(255,61,87,.15); }
-#statusbar.recover{ border-color: rgba(56,189,248,.5); }
-
-.sb-left { display: flex; align-items: center; gap: 14px; }
-.sb-brand {
-  font-family: var(--font-hud);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  color: var(--glow-b);
-  text-shadow: 0 0 16px rgba(59,139,255,.5);
-}
-.sb-sep { width: 1px; height: 20px; background: var(--border-hi); }
-.sb-track {
-  font-family: var(--font-data);
-  font-size: 10px;
-  color: var(--text-dim);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.sb-mode {
-  display: flex; align-items: center; gap: 10px;
-  font-family: var(--font-data);
-  font-size: 11px;
-  letter-spacing: .06em;
-  color: var(--text-mid);
-}
-.pulse-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--glow-g);
-  box-shadow: 0 0 10px var(--glow-g);
-  animation: pulse 2s ease-in-out infinite;
-  transition: background .4s, box-shadow .4s;
-}
-.fault  .pulse-dot { background: var(--glow-a); box-shadow: 0 0 10px var(--glow-a); animation: pulse-fast 0.6s ease-in-out infinite; }
-.hold   .pulse-dot { background: var(--glow-r); box-shadow: 0 0 14px var(--glow-r); animation: pulse-fast 0.4s ease-in-out infinite; }
-.recover .pulse-dot{ background: var(--glow-c); box-shadow: 0 0 10px var(--glow-c); }
-
-@keyframes pulse      { 0%,100%{opacity:1} 50%{opacity:.5} }
-@keyframes pulse-fast { 0%,100%{opacity:1} 50%{opacity:.2} }
-
-.sb-right {
-  display: flex; align-items: center; gap: 20px;
-  font-family: var(--font-data);
-  font-size: 10px;
-  color: var(--text-dim);
-  letter-spacing: .06em;
-}
-#sb-clock { color: var(--text-mid); }
-
-/* ─── MAIN WRAP ─────────────────────────────────────────── */
-.wrap {
-  position: relative;
-  z-index: 1;
-  max-width: 1220px;
-  margin: 0 auto;
-  padding: 28px 22px 60px;
-}
-
-/* ─── HERO HEADER ───────────────────────────────────────── */
-.hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding-bottom: 28px;
-  margin-bottom: 28px;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.hero::after {
-  content: '';
-  position: absolute;
-  bottom: -1px; left: 0;
-  width: 220px; height: 1px;
-  background: linear-gradient(90deg, var(--glow-b), transparent);
-}
-
-.hero-eyebrow {
-  font-family: var(--font-data);
-  font-size: 10.5px;
-  letter-spacing: .16em;
-  color: var(--glow-b);
-  text-transform: uppercase;
-  margin-bottom: 10px;
-  opacity: .85;
-}
-.hero h1 {
-  font-family: var(--font-hud);
-  font-size: clamp(22px, 3vw, 38px);
-  font-weight: 900;
-  letter-spacing: .04em;
-  line-height: 1.15;
-  color: #fff;
-  text-shadow: 0 0 40px rgba(59,139,255,.35);
-  margin-bottom: 10px;
-}
-.hero h1 span { color: var(--glow-b); }
-.hero-sub {
-  font-size: 13.5px;
-  color: var(--text-mid);
-  max-width: 580px;
-  line-height: 1.6;
-}
-
-.hero-badges { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-.badge {
-  font-family: var(--font-data);
-  font-size: 10px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  padding: 5px 12px;
-  border-radius: 3px;
-  border: 1px solid var(--border-hi);
-  color: var(--text-dim);
-  background: var(--panel2);
-  white-space: nowrap;
-}
-.badge.hi { border-color: rgba(59,139,255,.35); color: rgba(59,139,255,.8); background: rgba(59,139,255,.06); }
-
-/* ─── GRID ──────────────────────────────────────────────── */
-.grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 18px;
-}
-@media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
-
-/* ─── PANEL ─────────────────────────────────────────────── */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px 22px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .4s;
-}
-.panel::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--glow-b) 40%, transparent);
-  opacity: .25;
-}
-.panel.glow-active { border-color: rgba(59,139,255,.4); box-shadow: 0 0 30px rgba(59,139,255,.08); }
-.panel.glow-danger { border-color: rgba(255,61,87,.5); box-shadow: 0 0 30px rgba(255,61,87,.1); }
-
-.panel-title {
-  font-family: var(--font-data);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.panel-title::before {
-  content: '';
-  display: inline-block;
-  width: 14px; height: 1px;
-  background: var(--glow-b);
-  opacity: .6;
-}
-
-/* ─── PFD ───────────────────────────────────────────────── */
-.pfd-row { display: flex; gap: 16px; align-items: stretch; }
-
-.adi-wrap {
-  position: relative;
-  width: 248px;
-  height: 248px;
-  flex-shrink: 0;
-}
-.adi-outer {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid #1a2b45;
-  box-shadow:
-    0 0 0 4px #04080f,
-    0 0 0 6px #10203a,
-    0 0 30px rgba(59,139,255,.15),
-    inset 0 0 40px rgba(0,0,0,.7);
-  overflow: hidden;
-  z-index: 1;
-}
-.adi-horizon {
-  position: absolute;
-  left: -80px; top: -80px;
-  width: 410px; height: 820px;
-  transition: transform 1s cubic-bezier(.4,0,.2,1);
-}
-.adi-sky {
-  height: 50%;
-  background: linear-gradient(180deg, #0f3a82 0%, #1a5ab5 60%, #2272d4 100%);
-}
-.adi-ground {
-  height: 50%;
-  background: linear-gradient(180deg, #6b4423 0%, #8b5e35 60%, #5a3818 100%);
-}
-.adi-hline {
-  position: absolute;
-  top: calc(50% - 1px);
-  left: 0; right: 0;
-  height: 2px;
-  background: rgba(255,255,255,.9);
-}
-/* pitch ladder marks */
-.adi-horizon::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - 40px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px; height: 1px;
-  background: rgba(255,255,255,.6);
-  box-shadow: 0 40px 0 rgba(255,255,255,.6), 0 80px 0 rgba(255,255,255,.4), 0 -40px 0 rgba(255,255,255,.6);
-}
-.adi-boresight {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  pointer-events: none;
-}
-.adi-boresight svg { filter: drop-shadow(0 0 3px rgba(0,0,0,.8)); }
-
-/* bank arc */
-.adi-bank-arc {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  z-index: 6;
-  pointer-events: none;
-}
-.adi-bank-arc svg { position: absolute; inset: 0; }
-
-/* corner labels */
-.adi-corner {
-  position: absolute;
-  z-index: 7;
-  font-family: var(--font-data);
-  font-size: 9px;
-  color: rgba(255,255,255,.6);
-  letter-spacing: .05em;
-}
-.adi-corner.tl { top: 18px; left: 22px; }
-.adi-corner.tr { top: 18px; right: 22px; text-align: right; }
-
-/* tapes */
-.tapes { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-.tape {
-  background: var(--panel2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .3s;
-}
-.tape::after {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 2px;
-  background: var(--glow-b);
-  opacity: .4;
-  border-radius: 2px 0 0 2px;
-}
-.tape.warn { border-color: rgba(245,158,11,.5); }
-.tape.warn::after { background: var(--glow-a); opacity: .8; }
-.tape-label {
-  font-family: var(--font-data);
-  font-size: 9.5px;
-  color: var(--text-dim);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  margin-bottom: 3px;
-}
-.tape-val {
-  font-family: var(--font-data);
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1;
-  transition: color .3s;
-}
-.tape.warn .tape-val { color: var(--glow-a); animation: textflash .5s ease-in-out infinite; }
-.tape-flag {
-  position: absolute;
-  top: 9px; right: 11px;
-  font-family: var(--font-data);
-  font-size: 9px;
-  color: var(--glow-r);
-  letter-spacing: .08em;
-  opacity: 0;
-  transition: opacity .25s;
-}
-.tape.flag-on .tape-flag { opacity: 1; }
-
-@keyframes textflash { 0%,100%{opacity:1} 50%{opacity:.45} }
-
-/* ─── CONTROLS ──────────────────────────────────────────── */
-.controls { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
-
-.btn {
-  font-family: var(--font-data);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: .05em;
-  padding: 12px 18px;
-  border-radius: 6px;
-  border: 1px solid var(--border-hi);
-  background: var(--panel2);
-  color: var(--text-mid);
-  cursor: pointer;
-  transition: all .15s;
-  position: relative;
-  overflow: hidden;
-}
-.btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.04), transparent);
-  pointer-events: none;
-}
-.btn:hover { border-color: var(--glow-b); color: var(--glow-b); box-shadow: 0 0 14px rgba(59,139,255,.15); }
-.btn:disabled { opacity: .3; cursor: not-allowed; }
-.btn:disabled:hover { border-color: var(--border-hi); color: var(--text-mid); box-shadow: none; }
-
-.btn-fault {
-  border-color: rgba(245,158,11,.4);
-  color: var(--glow-a);
-  background: rgba(245,158,11,.05);
-}
-.btn-fault:hover {
-  border-color: var(--glow-a);
-  color: var(--glow-a);
-  box-shadow: 0 0 20px rgba(245,158,11,.2);
-}
-
-/* ─── COMPARE ───────────────────────────────────────────── */
-.compare-section {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-}
-.compare-title {
-  font-family: var(--font-data);
-  font-size: 9.5px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-  display: flex; align-items: center; gap: 10px;
-}
-.compare-title::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--glow-b); opacity: .5; }
-
-.bar-group { margin-bottom: 14px; }
-.bar-meta { display: flex; justify-content: space-between; margin-bottom: 5px; }
-.bar-label { font-size: 11.5px; color: var(--text-mid); }
-.bar-pair { display: flex; flex-direction: column; gap: 4px; }
-.bar-row2 { display: flex; align-items: center; gap: 8px; }
-.bar-tag { font-family: var(--font-data); font-size: 9px; color: var(--text-dim); width: 52px; text-transform: uppercase; letter-spacing: .04em; }
-.bar-track { flex: 1; height: 7px; background: rgba(255,255,255,.04); border-radius: 4px; border: 1px solid var(--border); overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 4px; }
-.bar-fill.red  { background: linear-gradient(90deg, #7a1d2a, var(--glow-r)); }
-.bar-fill.grn  { background: linear-gradient(90deg, #0d6650, var(--glow-g)); }
-.bar-val { font-family: var(--font-data); font-size: 10px; color: var(--text-mid); width: 60px; text-align: right; }
-.compare-note { font-size: 10px; color: #334256; margin-top: 10px; line-height: 1.5; }
-
-/* ─── LAYERS (right panel) ──────────────────────────────── */
-.layer {
-  display: flex;
-  gap: 14px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  transition: background .3s;
-}
-.layer:last-of-type { border-bottom: none; }
-.layer.lit { background: rgba(59,139,255,.04); border-radius: 8px; padding: 14px 10px; margin: 0 -10px; }
-
-.layer-icon {
-  width: 34px; height: 34px;
-  border-radius: 8px;
-  border: 1px solid var(--border-hi);
-  background: var(--panel2);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-  transition: border-color .3s, box-shadow .3s;
-}
-.layer.lit .layer-icon {
-  border-color: rgba(59,139,255,.5);
-  box-shadow: 0 0 12px rgba(59,139,255,.2);
-}
-.layer-done .layer-icon {
-  border-color: rgba(16,232,160,.5);
-  box-shadow: 0 0 12px rgba(16,232,160,.2);
-}
-
-.layer-body { flex: 1; min-width: 0; }
-.layer-name {
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-}
-.layer-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
-
-.pill {
-  font-family: var(--font-data);
-  font-size: 9px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  border: 1px solid var(--border);
-  background: var(--panel2);
-  color: var(--text-dim);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  transition: all .3s;
-  white-space: nowrap;
-}
-.pill.active { background: rgba(59,139,255,.15); border-color: rgba(59,139,255,.5); color: var(--glow-b); animation: pillglow 1s ease-in-out infinite; }
-.pill.done   { background: rgba(16,232,160,.12); border-color: rgba(16,232,160,.4); color: var(--glow-g); animation: none; }
-@keyframes pillglow { 0%,100%{box-shadow:0 0 6px rgba(59,139,255,.3)} 50%{box-shadow:0 0 14px rgba(59,139,255,.6)} }
-
-/* ─── ALERT PANEL ───────────────────────────────────────── */
-.alert-section { margin-top: 16px; }
-.alert-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-}
-.alert-item {
-  background: rgba(255,61,87,.07);
-  border: 1px solid rgba(255,61,87,.3);
-  border-radius: 5px;
-  padding: 8px 10px;
-  font-family: var(--font-data);
-  font-size: 10px;
-  color: var(--glow-r);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  letter-spacing: .05em;
-  transition: opacity .5s, transform .5s;
-}
-.alert-item::before { content: '▲'; font-size: 8px; opacity: .7; }
-
-/* recovery ring */
-.recovery-box {
-  display: none;
-  text-align: center;
-  padding: 16px 12px;
-  background: rgba(56,189,248,.04);
-  border: 1px solid rgba(56,189,248,.2);
-  border-radius: 10px;
-  animation: fadeIn .4s ease;
-}
-.recovery-box.show { display: block; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-
-.ring-wrap { position: relative; width: 100px; height: 100px; margin: 0 auto 12px; }
-.ring-wrap svg { transform: rotate(-90deg); }
-.ring-bg  { fill: none; stroke: var(--border); stroke-width: 7; }
-.ring-fg  { fill: none; stroke: var(--glow-c); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 283; stroke-dashoffset: 283; filter: drop-shadow(0 0 6px rgba(56,189,248,.6)); transition: stroke-dashoffset .3s linear; }
-.ring-num {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-hud);
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--glow-c);
-  text-shadow: 0 0 20px rgba(56,189,248,.6);
-}
-.recovery-label { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.recovery-sub { font-size: 11.5px; color: var(--text-dim); }
-
-/* ─── LOG ───────────────────────────────────────────────── */
-.log-wrap { margin-top: 18px; }
-.log-label { font-family: var(--font-data); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
-.log-label::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--glow-b); opacity: .5; }
-.log {
-  background: #030507;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  height: 148px;
-  overflow-y: auto;
-  font-family: var(--font-data);
-  font-size: 10.5px;
-  line-height: 1.75;
-  /* scanline */
-  background-image: repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(255,255,255,.012) 28px, rgba(255,255,255,.012) 29px);
-}
-.log::-webkit-scrollbar { width: 4px; }
-.log::-webkit-scrollbar-track { background: transparent; }
-.log::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
-.log .ts { color: #2a4060; margin-right: 8px; }
-.log .norm { color: var(--text-dim); }
-.log .warn { color: var(--glow-a); }
-.log .err  { color: var(--glow-r); }
-.log .ok   { color: var(--glow-g); }
-
-/* ─── TECH STACK ────────────────────────────────────────── */
-.stack-row { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
-.stack-tag {
-  font-family: var(--font-data);
-  font-size: 9.5px;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  padding: 4px 10px;
-  border-radius: 3px;
-  letter-spacing: .04em;
-  background: var(--panel2);
-}
-
-/* ─── FOOTER ────────────────────────────────────────────── */
-footer {
-  margin-top: 32px;
-  text-align: center;
-  font-family: var(--font-data);
-  font-size: 10px;
-  color: #1e2e44;
-  letter-spacing: .06em;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GDFC — Graceful Degradation Flight Control</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- External CSS File -->
+    <link rel="stylesheet" href="prototype.css">
 </head>
 <body>
 
-<canvas id="radar-canvas"></canvas>
+    <!-- HEADER -->
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>GDFC</h1>
+                <p>Graceful Degradation Flight Control</p>
+            </div>
+            <div class="status-container">
+                <div class="status-card">
+                    <div class="status-dot"></div>
+                    <span>System Online</span>
+                </div>
+                <div class="status-card">
+                    <div class="status-dot"></div>
+                    <span>Edge Connected</span>
+                </div>
+                <div class="status-card">
+                    <div class="status-dot"></div>
+                    <span>Telemetry Live</span>
+                </div>
+            </div>
+        </header>
 
-<!-- STATUS BAR -->
-<div id="statusbar">
-  <div class="sb-left">
-    <div class="sb-brand">GDFC</div>
-    <div class="sb-sep"></div>
-    <div class="sb-track">Software-Defined Aerospace · Edge AI Safety Layer</div>
-  </div>
-  <div class="sb-mode">
-    <div class="pulse-dot"></div>
-    <span id="modetext">NORMAL — AUTOPILOT ENGAGED</span>
-  </div>
-  <div class="sb-right">
-    <span>ALT 34,000 FT</span>
-    <span>|</span>
-    <span id="sb-clock">00:00:00</span>
-  </div>
-</div>
+        <!-- HERO SECTION -->
+        <div class="hero">
+            <h2>Edge-AI Onboard Safety Assistant</h2>
+            <p>An edge-AI safety layer that absorbs sensor failure before it becomes a startle event — stabilizing the aircraft locally while guiding the pilot through a single, structured recovery protocol.</p>
+        </div>
 
-<div class="wrap">
+        <!-- INPUT SECTION -->
+        <div class="card">
+            <h2>Sensor Inputs (Telemetry)</h2>
+            <p>Inject flight sensor data below or select a preset scenario:</p>
+            
+            <div class="button-row">
+                <button class="primary" id="normalBtn">✈️ Normal Flight</button>
+                <button id="pitotBtn">⚠️ Pitot Failure</button>
+                <button id="gpsBtn">📡 GPS Failure</button>
+                <button id="imuBtn">🔄 IMU Drift</button>
+                <button id="resetBtn">↻ Reset</button>
+            </div>
 
-  <!-- HERO -->
-  <div class="hero">
-    <div>
-      <div class="hero-eyebrow">Graceful Degradation Flight Control · Virtual PoC</div>
-      <h1>GDFC<br><span>Edge-AI Onboard</span><br>Safety Assistant</h1>
-      <p class="hero-sub">An edge-AI safety layer that absorbs sensor failure before it becomes a startle event — stabilising the aircraft locally while guiding the pilot through a single, structured recovery.</p>
+            <div class="input-grid">
+                <div class="input-box">
+                    <label>Pitot Speed (kt)</label>
+                    <input type="number" id="pitot_speed" placeholder="280" value="280">
+                </div>
+                <div class="input-box">
+                    <label>GPS Speed (kt)</label>
+                    <input type="number" id="gps_speed" placeholder="281" value="281">
+                </div>
+                <div class="input-box">
+                    <label>Altitude (ft)</label>
+                    <input type="number" id="altitude" placeholder="35000" value="35000">
+                </div>
+
+                <div class="input-box">
+                    <label>Vertical Speed (fpm)</label>
+                    <input type="number" id="vertical_speed" placeholder="0" value="0">
+                </div>
+                <div class="input-box">
+                    <label>Pitch (deg)</label>
+                    <input type="number" id="pitch" placeholder="2" value="2">
+                </div>
+                <div class="input-box">
+                    <label>Roll (deg)</label>
+                    <input type="number" id="roll" placeholder="1" value="1">
+                </div>
+
+                <div class="input-box">
+                    <label>Heading (deg)</label>
+                    <input type="number" id="heading" placeholder="90" value="90">
+                </div>
+                <div class="input-box">
+                    <label>Accel X (g)</label>
+                    <input type="number" id="accel_x" placeholder="0.01" value="0.01" step="0.01">
+                </div>
+                <div class="input-box">
+                    <label>Accel Y (g)</label>
+                    <input type="number" id="accel_y" placeholder="0" value="0" step="0.01">
+                </div>
+
+                <div class="input-box">
+                    <label>Accel Z (g)</label>
+                    <input type="number" id="accel_z" placeholder="1" value="1" step="0.01">
+                </div>
+                <div class="input-box">
+                    <label>Gyro X (deg/s)</label>
+                    <input type="number" id="gyro_x" placeholder="0.02" value="0.02" step="0.01">
+                </div>
+                <div class="input-box">
+                    <label>Gyro Y (deg/s)</label>
+                    <input type="number" id="gyro_y" placeholder="0.01" value="0.01" step="0.01">
+                </div>
+
+                <div class="input-box">
+                    <label>Gyro Z (deg/s)</label>
+                    <input type="number" id="gyro_z" placeholder="0.03" value="0.03" step="0.01">
+                </div>
+                <div class="input-box">
+                    <label>Pressure (mb)</label>
+                    <input type="number" id="pressure" placeholder="238" value="238">
+                </div>
+                <div class="input-box">
+                    <label>Temperature (°C)</label>
+                    <input type="number" id="temperature" placeholder="-45" value="-45">
+                </div>
+
+                <div class="input-box">
+                    <label>Latitude</label>
+                    <input type="number" id="latitude" placeholder="19.076" value="19.076" step="0.001">
+                </div>
+                <div class="input-box">
+                    <label>Longitude</label>
+                    <input type="number" id="longitude" placeholder="72.877" value="72.877" step="0.001">
+                </div>
+            </div>
+
+            <div class="button-row">
+                <button class="primary" id="predictBtn">🚀 Run Prediction</button>
+            </div>
+        </div>
+
+        <!-- SENSOR HEALTH TABLE -->
+        <div class="card">
+            <h2>Sensor Health & Readings</h2>
+            <table class="sensor-table">
+                <thead>
+                    <tr>
+                        <th>Sensor</th>
+                        <th>Status</th>
+                        <th>Reading</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Pitot Airspeed</td>
+                        <td id="pitot_status"><span class="healthy">🟢 Healthy</span></td>
+                        <td id="pitot_reading">280 kt</td>
+                    </tr>
+                    <tr>
+                        <td>GPS Speed</td>
+                        <td id="gps_status"><span class="healthy">🟢 Healthy</span></td>
+                        <td id="gps_reading">281 kt</td>
+                    </tr>
+                    <tr>
+                        <td>Pressure Altitude</td>
+                        <td id="pressure_status"><span class="healthy">🟢 Healthy</span></td>
+                        <td id="pressure_reading">35000 ft</td>
+                    </tr>
+                    <tr>
+                        <td>IMU (Attitude)</td>
+                        <td id="imu_status"><span class="healthy">🟢 Healthy</span></td>
+                        <td>2°P / 1°R</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- AI PREDICTION RESULTS -->
+        <div class="card ai-card">
+            <h2>Edge AI Prediction Results</h2>
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <h3>Anomaly Detection</h3>
+                    <h1 id="prediction">Waiting...</h1>
+                </div>
+                <div class="stat-card">
+                    <h3>Confidence</h3>
+                    <h1 id="confidence">--</h1>
+                </div>
+                <div class="stat-card">
+                    <h3>Latency (ms)</h3>
+                    <h1 id="latency">--</h1>
+                </div>
+                <div class="stat-card">
+                    <h3>Backup Sensor</h3>
+                    <h1 id="backup_sensor" style="font-size: 20px;">None</h1>
+                </div>
+            </div>
+
+            <div class="decision-flow">
+                <div>↓</div>
+                <div>Control Mode: <span id="control_mode">NORMAL</span></div>
+                <div>Priority: <span id="priority">LOW</span></div>
+                <div>↓</div>
+            </div>
+        </div>
+
+        <!-- SAFE HOLD STATUS -->
+        <div class="card">
+            <h2>Safe-Hold Mode Status</h2>
+            <div class="status-grid">
+                <div class="status-box">
+                    <h4>Pitch Hold</h4>
+                    <p id="pitch_hold" class="inactive">Inactive</p>
+                </div>
+                <div class="status-box">
+                    <h4>Roll Hold</h4>
+                    <p id="roll_hold" class="inactive">Inactive</p>
+                </div>
+                <div class="status-box">
+                    <h4>Heading Hold</h4>
+                    <p id="heading_hold" class="inactive">Inactive</p>
+                </div>
+                <div class="status-box">
+                    <h4>Altitude Hold</h4>
+                    <p id="altitude_hold" class="inactive">Inactive</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PILOT GUIDANCE -->
+        <div class="card">
+            <h2>Pilot Guidance & Recovery Protocol</h2>
+            <ol id="pilot_guidance">
+                <li>System Initialized</li>
+                <li>Waiting for Edge AI Prediction</li>
+            </ol>
+        </div>
+
+        <!-- CHARTS SECTION -->
+        <div class="card chart-card">
+            <h2>Airspeed Analysis</h2>
+            <canvas id="speedChart"></canvas>
+        </div>
+
+        <div class="card chart-card">
+            <h2>Altitude Trend</h2>
+            <canvas id="altitudeChart"></canvas>
+        </div>
+
+        <div class="card chart-card">
+            <h2>Model Confidence</h2>
+            <canvas id="confidenceChart"></canvas>
+        </div>
+
+        <!-- STATISTICS -->
+        <div class="card">
+            <h2>System Statistics</h2>
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <h3>Model Accuracy</h3>
+                    <h1 id="accuracy">96.4%</h1>
+                </div>
+                <div class="stat-card">
+                    <h3>Average Latency</h3>
+                    <h1 id="latencyCard">6 ms</h1>
+                </div>
+            </div>
+        </div>
+
+        <!-- FEATURE IMPORTANCE -->
+        <div class="card">
+            <h2>Feature Importance (SHAP)</h2>
+            <div class="feature-list">
+                <div class="feature">
+                    <span>Airspeed Disagreement</span>
+                    <div class="bar">
+                        <div class="fill" style="width: 95%;"></div>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span>Pitch Anomaly</span>
+                    <div class="bar">
+                        <div class="fill" style="width: 78%;"></div>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span>Roll Deviation</span>
+                    <div class="bar">
+                        <div class="fill" style="width: 62%;"></div>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span>Altitude Change Rate</span>
+                    <div class="bar">
+                        <div class="fill" style="width: 45%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SYSTEM LOG -->
+        <div class="card">
+            <h2>System / Black-Box Log</h2>
+            <div class="logs" id="systemLogs">
+                <div><strong>System Ready</strong></div>
+            </div>
+        </div>
+
     </div>
-    <div class="hero-badges">
-      <div class="badge hi">Primary Track: Software-Defined Aerospace</div>
-      <div class="badge">Secondary: Sustainable Aviation · Energy Opt.</div>
-      <div class="badge">InnoVent × Tata Technologies</div>
-    </div>
-  </div>
 
-  <!-- GRID -->
-  <div class="grid">
+    <!-- External JavaScript File -->
+    <script src="prototype.js"></script>
 
-    <!-- LEFT PANEL: PFD -->
-    <div class="panel" id="pfdPanel">
-      <div class="panel-title">Primary Flight Display — Simulated</div>
-
-      <div class="pfd-row">
-        <div class="adi-wrap">
-          <div class="adi-outer" id="adiOuter">
-            <div class="adi-horizon" id="horizon">
-              <div class="adi-sky"></div>
-              <div class="adi-ground"></div>
-              <div class="adi-hline"></div>
-            </div>
-          </div>
-          <div class="adi-boresight">
-            <svg width="110" height="22" viewBox="0 0 110 22">
-              <line x1="5"  y1="11" x2="42" y2="11" stroke="#ffcf3f" stroke-width="2.5" stroke-linecap="round"/>
-              <line x1="68" y1="11" x2="105" y2="11" stroke="#ffcf3f" stroke-width="2.5" stroke-linecap="round"/>
-              <polyline points="48,11 55,19 62,11" fill="none" stroke="#ffcf3f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="55" cy="11" r="2" fill="#ffcf3f"/>
-            </svg>
-          </div>
-          <div class="adi-corner tl">GS 248kt</div>
-          <div class="adi-corner tr">FL340</div>
-        </div>
-
-        <div class="tapes">
-          <div class="tape" id="tape-air">
-            <div class="tape-label">Airspeed (kt)</div>
-            <div class="tape-val" id="val-air">248</div>
-            <div class="tape-flag" id="flag-air">PITOT FAULT</div>
-          </div>
-          <div class="tape" id="tape-alt">
-            <div class="tape-label">Altitude (ft)</div>
-            <div class="tape-val" id="val-alt">34,000</div>
-            <div class="tape-flag" id="flag-alt">DATA LOSS</div>
-          </div>
-          <div class="tape" id="tape-roll">
-            <div class="tape-label">Bank / Pitch</div>
-            <div class="tape-val" id="val-roll">0° / 0°</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="controls">
-        <button class="btn btn-fault" id="btnFault">⚡ Inject Fault — Pitot Icing (Microburst)</button>
-        <button class="btn" id="btnReset" disabled>↺ Reset Simulation</button>
-      </div>
-
-      <div class="compare-section">
-        <div class="compare-title">Illustrative Impact — Baseline vs GDFC</div>
-
-        <div class="bar-group">
-          <div class="bar-label" style="font-size:12px;color:var(--text-mid);margin-bottom:7px;">Time to stable manual control</div>
-          <div class="bar-pair">
-            <div class="bar-row2">
-              <div class="bar-tag">Baseline</div>
-              <div class="bar-track"><div class="bar-fill red" style="width:87%"></div></div>
-              <div class="bar-val">~40 s *</div>
-            </div>
-            <div class="bar-row2">
-              <div class="bar-tag">GDFC</div>
-              <div class="bar-track"><div class="bar-fill grn" style="width:28%"></div></div>
-              <div class="bar-val">~12 s *</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bar-group" style="margin-top:12px;">
-          <div class="bar-label" style="font-size:12px;color:var(--text-mid);margin-bottom:7px;">Simultaneous alarms shown to pilot</div>
-          <div class="bar-pair">
-            <div class="bar-row2">
-              <div class="bar-tag">Baseline</div>
-              <div class="bar-track"><div class="bar-fill red" style="width:94%"></div></div>
-              <div class="bar-val">Multi-alarm</div>
-            </div>
-            <div class="bar-row2">
-              <div class="bar-tag">GDFC</div>
-              <div class="bar-track"><div class="bar-fill grn" style="width:11%"></div></div>
-              <div class="bar-val">1 protocol</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="compare-note">* Illustrative targets for demo purposes — to be validated against HIL test data, not sourced from certified avionics.</div>
-      </div>
-    </div>
-
-    <!-- RIGHT PANEL: GDFC Layers + Log -->
-    <div class="panel" id="rightPanel">
-      <div class="panel-title">GDFC — Three Localized Safety Layers</div>
-
-      <div class="layer" id="layer-1">
-        <div class="layer-icon">🔍</div>
-        <div class="layer-body">
-          <div class="layer-name">
-            On-Edge Sensor Voting Logic
-            <span class="pill" id="pill-1">idle</span>
-          </div>
-          <div class="layer-desc">Local ML classifier cross-checks redundant sensor signals in real time. On anomaly (pitot icing), it isolates the corrupted source using GPS-velocity fallback — no cloud round-trip required.</div>
-        </div>
-      </div>
-
-      <div class="layer" id="layer-2">
-        <div class="layer-icon">🛡️</div>
-        <div class="layer-body">
-          <div class="layer-name">
-            Graceful Flight Degradation
-            <span class="pill" id="pill-2">idle</span>
-          </div>
-          <div class="layer-desc">Instead of a full autopilot drop-off, the system enters Safe-Hold Mode — stabilising wing-level trajectory and constraining pitch to safe envelopes while the pilot re-orients.</div>
-        </div>
-      </div>
-
-      <div class="layer" id="layer-3">
-        <div class="layer-icon">🖥️</div>
-        <div class="layer-body">
-          <div class="layer-name">
-            UI De-cluttering & Cognitive Assist
-            <span class="pill" id="pill-3">idle</span>
-          </div>
-          <div class="layer-desc">Secondary error codes are suppressed. A single high-visibility recovery protocol is surfaced, giving the pilot a 15-second buffer to absorb the transition before resuming manual input.</div>
-        </div>
-      </div>
-
-      <!-- alert / recovery area -->
-      <div class="alert-section">
-        <div id="alertGrid" class="alert-grid">
-          <div class="alert-item">PITOT-STATIC FAIL</div>
-          <div class="alert-item">AIRSPEED DISAGREE</div>
-          <div class="alert-item">AP DISCONNECT</div>
-          <div class="alert-item">ALT DISAGREE</div>
-          <div class="alert-item">FD FAIL</div>
-          <div class="alert-item">STALL WARNING</div>
-        </div>
-
-        <div class="recovery-box" id="recoveryBox">
-          <div class="ring-wrap">
-            <svg width="100" height="100">
-              <circle class="ring-bg" cx="50" cy="50" r="45"/>
-              <circle class="ring-fg" id="ringFg" cx="50" cy="50" r="45"/>
-            </svg>
-            <div class="ring-num" id="ringNum">15</div>
-          </div>
-          <div class="recovery-label">Wings level. Hold heading.</div>
-          <div class="recovery-sub">Safe-Hold active — resume manual control when ready</div>
-        </div>
-      </div>
-
-      <!-- log -->
-      <div class="log-wrap">
-        <div class="log-label">System / Black-Box Log</div>
-        <div class="log" id="log">
-          <div><span class="ts">00:00:00.000</span><span class="norm">GDFC standby. Autopilot nominal. All sensor channels green.</span></div>
-        </div>
-      </div>
-
-      <div class="stack-row">
-        <span class="stack-tag">Edge: Jetson Nano / Pi 5</span>
-        <span class="stack-tag">AWS SageMaker → IoT Greengrass</span>
-        <span class="stack-tag">Emerson NI HIL / LabVIEW</span>
-      </div>
-    </div>
-
-  </div><!-- end grid -->
-
-  <footer>GDFC Virtual Proof of Concept — Hackathon demonstration only. Flight data and timings are simulated; not sourced from certified avionics.</footer>
-</div>
-
-<script>
-/* ── Radar canvas ─────────────────────────────────────── */
-(function(){
-  const cv = document.getElementById('radar-canvas');
-  const ctx = cv.getContext('2d');
-  let W, H, cx, cy, R, angle = 0;
-  const dots = [];
-
-  function resize(){
-    W = cv.width  = window.innerWidth;
-    H = cv.height = window.innerHeight;
-    cx = W * .72; cy = H * .38;
-    R = Math.min(W, H) * .36;
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  // sparse dots on radar
-  for(let i=0;i<38;i++){
-    const a = Math.random()*Math.PI*2;
-    const r = Math.random()*0.9 + 0.08;
-    dots.push({ a, r, life: Math.random(), decay: .004 + Math.random()*.006 });
-  }
-
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-
-    // rings
-    for(let i=1;i<=4;i++){
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * i/4, 0, Math.PI*2);
-      ctx.strokeStyle = `rgba(59,139,255,${0.06 + (i===4?.04:0)})`;
-      ctx.lineWidth = i===4 ? 1 : .5;
-      ctx.stroke();
-    }
-
-    // crosshairs
-    ctx.strokeStyle = 'rgba(59,139,255,0.07)';
-    ctx.lineWidth = .5;
-    ctx.beginPath(); ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R); ctx.stroke();
-
-    // sweep
-    const sweepGrad = ctx.createConicalGradient ? null : null;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    const g = ctx.createLinearGradient(0,0,R,0);
-    g.addColorStop(0, 'rgba(59,139,255,0.28)');
-    g.addColorStop(1, 'rgba(59,139,255,0)');
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,R, -Math.PI*.18, 0);
-    ctx.closePath();
-    ctx.fillStyle = g;
-    ctx.fill();
-    // sweep line
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(R,0);
-    ctx.strokeStyle = 'rgba(59,139,255,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.restore();
-
-    // dots
-    dots.forEach(d => {
-      const ang = angle + d.a; // phase
-      const diff = ((ang % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
-      if(diff < 0.3){
-        d.life = 1;
-      }
-      if(d.life > 0){
-        const px = cx + Math.cos(d.a) * R * d.r;
-        const py = cy + Math.sin(d.a) * R * d.r;
-        ctx.beginPath();
-        ctx.arc(px, py, 2, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(59,139,255,${d.life * .7})`;
-        ctx.fill();
-        d.life = Math.max(0, d.life - d.decay);
-      }
-    });
-
-    angle += 0.004;
-    requestAnimationFrame(draw);
-  }
-  draw();
-})();
-
-/* ── Clock ──────────────────────────────────────────────── */
-let simStart = Date.now();
-(function clock(){
-  const ms = Date.now() - simStart;
-  const s  = Math.floor(ms/1000);
-  const m  = Math.floor(s/60);
-  const H2 = Math.floor(m/60);
-  document.getElementById('sb-clock').textContent =
-    `${String(H2).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-  setTimeout(clock, 500);
-})();
-
-/* ── Simulation ─────────────────────────────────────────── */
-const $ = id => document.getElementById(id);
-const sb = $('statusbar'), modetext = $('modetext');
-const btnFault = $('btnFault'), btnReset = $('btnReset');
-const horizon = $('horizon'), pfdPanel = $('pfdPanel'), rightPanel = $('rightPanel');
-const logEl = $('log');
-const pills = [$('pill-1'), $('pill-2'), $('pill-3')];
-const layers = [$('layer-1'), $('layer-2'), $('layer-3')];
-const alertGrid = $('alertGrid'), recoveryBox = $('recoveryBox');
-const ringFg = $('ringFg'), ringNum = $('ringNum');
-const CIRC = 283;
-
-let running = false, t0 = performance.now();
-
-function ts(){
-  const ms = performance.now()-t0;
-  const s=ms/1000, mm=Math.floor(s/60), ss=Math.floor(s%60), mmm=Math.floor(ms%1000);
-  return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(mmm).padStart(3,'0')}`;
-}
-function log(text, cls='norm'){
-  const d=document.createElement('div');
-  d.innerHTML=`<span class="ts">00:${ts()}</span><span class="${cls}">${text}</span>`;
-  logEl.appendChild(d);
-  logEl.scrollTop=logEl.scrollHeight;
-}
-function setMode(cls, text){
-  sb.className = cls;
-  modetext.textContent = text;
-}
-function setPill(i, cls, text){
-  pills[i].className='pill '+(cls||'');
-  pills[i].textContent=text;
-  if(cls==='done') layers[i].classList.add('layer-done');
-  if(cls==='active') layers[i].classList.add('lit');
-}
-function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
-
-async function runSeq(){
-  running=true; btnFault.disabled=true; btnReset.disabled=true;
-  t0=performance.now();
-
-  // FAULT
-  setMode('fault','ANOMALY DETECTED — SENSOR CROSS-CHECK');
-  pfdPanel.classList.add('glow-danger');
-  $('tape-air').classList.add('warn','flag-on');
-  $('val-air').textContent='——';
-  log('Pitot-tube icing event during microburst penetration.','warn');
-  await wait(500);
-  log('Airspeed disagree: primary vs standby channels diverging.','warn');
-  await wait(700);
-
-  // LAYER 1
-  setPill(0,'active','processing');
-  log('L1 On-Edge Sensor Voting: cross-checking all redundant sensor channels on local edge processor.');
-  await wait(950);
-  log('L1: corrupted airspeed source isolated. GPS-derived velocity fallback substituted.','ok');
-  setPill(0,'done','✓ done');
-  await wait(450);
-
-  // LAYER 2
-  setPill(1,'active','engaged');
-  setMode('hold','SAFE-HOLD MODE — STABILISING');
-  pfdPanel.classList.remove('glow-danger');
-  horizon.style.transform='translate(5px, 14px) rotate(-2.5deg)';
-  $('val-roll').textContent='-2° / +1°';
-  log('L2 Graceful Flight Degradation: autopilot NOT disconnected — entering Safe-Hold Mode.','err');
-  await wait(750);
-  log('L2: wing-level trajectory locked. Pitch envelope constrained to ±8° safe band.');
-  await wait(800);
-  horizon.style.transform='none';
-  $('val-roll').textContent='0° / 0°';
-  $('val-air').textContent='241';
-  $('tape-air').classList.remove('warn','flag-on');
-  log('L2: aircraft stabilised wings-level. No stall / CFIT trajectory.','ok');
-  setPill(1,'done','✓ done');
-  await wait(450);
-
-  // LAYER 3
-  setPill(2,'active','active');
-  setMode('recover','RECOVERY BUFFER — PILOT RE-ORIENTING');
-  rightPanel.classList.add('glow-active');
-  log('L3 UI De-cluttering: suppressing secondary alarms. Surfacing single recovery protocol.');
-  alertGrid.style.display='none';
-  recoveryBox.classList.add('show');
-  await wait(200);
-
-  let secs=15;
-  ringNum.textContent=secs;
-  const total=4500, steps=15;
-  for(let i=1;i<=steps;i++){
-    await wait(total/steps);
-    secs--;
-    ringNum.textContent=Math.max(secs,0);
-    ringFg.style.strokeDashoffset=CIRC - CIRC*(i/steps);
-  }
-  log('L3: 15s cognitive buffer elapsed. Pilot resumes manual input on stabilised aircraft.','ok');
-  setPill(2,'done','✓ done');
-  await wait(400);
-
-  setMode('','NORMAL — MANUAL CONTROL RESTORED');
-  rightPanel.classList.remove('glow-active');
-  log('GDFC standing by. Flight parameters nominal. All channels green.');
-  $('val-alt').textContent='34,000';
-
-  running=false; btnReset.disabled=false;
-}
-
-btnFault.addEventListener('click', ()=>{ if(!running) runSeq(); });
-btnReset.addEventListener('click', ()=>{ location.reload(); });
-</script>
 </body>
 </html>
